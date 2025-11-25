@@ -11,7 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 
 @Service
@@ -121,8 +121,10 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public long countNewUsers(LocalDateTime start, LocalDateTime end) {
-       return userRepository.countNewUsers(start, end);
+    public long countNewUsersInLastDay() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime twentyFourHoursAgo = now.minusHours(24);
+       return userRepository.countNewUsers(twentyFourHoursAgo, now);
     }
 
 }

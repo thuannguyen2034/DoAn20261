@@ -14,10 +14,9 @@ public interface UserService {
      * @return DTO chứa thông tin user an toàn
      */
     UserResponseDTO getCurrentUser(String email);
-    // Trong UserService.java (Interface)
     void changePassword(String email, ChangePasswordRequestDTO request);
     UserResponseDTO updateUserInfo(String email, UserInfoUpdateDTO user);
     UserResponseDTO updateAvatar(String email, String newAvatarUrl);
     void deleteAvatar(String email);
-    long countNewUsers(LocalDateTime start, LocalDateTime end);
+    long countNewUsersInLastDay();
 }
