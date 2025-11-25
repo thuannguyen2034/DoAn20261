@@ -15,8 +15,8 @@ import java.util.List;
 public interface ProductService {
 
     // --- Public ---
-    Page<ProductResponseDTO> getProducts(Pageable pageable, String searchTerm, Long categoryId);
-
+    Page<ProductResponseDTO> getProducts( String searchTerm,String categorySlug ,String sortParam,Pageable pageable);
+    List<String> getSearchHints(String keyword);
     ProductResponseDTO getProductDetails(Long id);
 
     // ==================================================================

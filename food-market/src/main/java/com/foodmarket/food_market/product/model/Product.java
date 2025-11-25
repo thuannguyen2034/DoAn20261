@@ -8,6 +8,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -49,25 +50,33 @@ public class Product {
     @Column(name = "slug", unique = true, nullable = false)
     private String slug;
 
+    @Column(name = "sold_count")
+    private Integer soldCount = 0;
+
     // --- Mối quan hệ với Category ---
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
     // --- Mối quan hệ với Tags (Many-to-Many) ---
-    @ManyToMany(cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "product_tags",
             joinColumns = @JoinColumn(name = "product_id"),
             inverseJoinColumns = @JoinColumn(name = "tag_id")
     )
     private Set<Tag> tags = new HashSet<>();
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private OffsetDateTime createdAt;
+
     // --------- Soft Delete ----------
     @Column(name = "is_deleted", nullable = false)
     private boolean isDeleted = false;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
     // --- Hàm tiện ích (Helper Methods) ---
     public void addTag(Tag tag) {
         this.tags.add(tag);
@@ -77,5 +86,13 @@ public class Product {
     public void removeTag(Tag tag) {
         this.tags.remove(tag);
         tag.getProducts().remove(this);
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            // Lấy giờ hiện tại kèm offset (VD: +07:00)
+            this.createdAt = OffsetDateTime.now();
+        }
     }
 }

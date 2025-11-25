@@ -3,7 +3,6 @@ package com.foodmarket.food_market.admin.controller;
 import com.foodmarket.food_market.inventory.dto.InventoryBatchDTO;
 import com.foodmarket.food_market.inventory.service.InventoryService;
 import com.foodmarket.food_market.product.dto.AdminProductResponseDTO;
-import com.foodmarket.food_market.product.dto.ProductResponseDTO;
 import com.foodmarket.food_market.product.dto.ProductSaveRequestDTO;
 import com.foodmarket.food_market.product.service.ProductService;
 import jakarta.validation.Valid;

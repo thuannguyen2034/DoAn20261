@@ -19,7 +19,9 @@ import com.github.slugify.Slugify;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,23 +59,53 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ProductResponseDTO> getProducts(Pageable pageable, String searchTerm, Long categoryId) {
-        // 1. Xây dựng bộ lọc động (Specification)
-        Specification<Product> spec = ProductSpecification.filterBy(searchTerm, categoryId,false,false);
+    public Page<ProductResponseDTO> getProducts(
+            String searchTerm,
+            String categorySlug,
+            String sortParam,
+            Pageable pageable // Pageable này chỉ chứa page và size từ client gửi lên
+    ) {
+        // 1. Xử lý Logic Sắp xếp (Sorting)
+        Sort sort = Sort.by(Sort.Direction.DESC, "createdAt"); // Mặc định: Mới nhất
 
-        // 2. Lấy trang (Page) Product
-        Page<Product> productPage = productRepository.findAll(spec, pageable);
+        if (sortParam != null && !sortParam.isEmpty()) {
+            switch (sortParam) {
+                case "price_asc" -> sort = Sort.by(Sort.Direction.ASC, "basePrice");
+                case "price_desc" -> sort = Sort.by(Sort.Direction.DESC, "basePrice");
+                case "best_selling" -> sort = Sort.by(Sort.Direction.DESC, "soldCount");
+                case "name_asc" -> sort = Sort.by(Sort.Direction.ASC, "name");
+                case "newest" -> sort = Sort.by(Sort.Direction.DESC, "createdAt");
+                default -> { /* Giữ mặc định */ }
+            }
+        }
 
-        // 3. Tính toán giá và chuyển đổi sang DTO
-        // Lưu ý: Tải các luật giá MỘT LẦN để tối ưu
+        // 2. Tạo Pageable hoàn chỉnh (Gộp Page/Size cũ + Sort mới)
+        // SỬA LỖI: Lấy size từ pageable truyền vào, không dùng biến 'size' chưa khai báo
+        Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
+
+        // 3. Xây dựng Specification (Bộ lọc)
+        Specification<Product> spec = ProductSpecification.filterBy(searchTerm,null, categorySlug, false, false);
+
+        // 4. Query Database
+        Page<Product> productPage = productRepository.findAll(spec, sortedPageable);
+
+        // 5. Tính toán giá và Map sang DTO
+        // Tối ưu: Lấy rule 1 lần duy nhất
         List<DynamicPricingRule> rules = dynamicPricingRuleRepository.findAllSortedByTriggerDay();
 
         return productPage.map(product -> {
             CalculatedPrice price = calculateFinalPrice(product, rules);
-            return ProductResponseDTO.fromEntity(product, price.finalPrice(), price.discountPercentage());
+            return ProductResponseDTO.fromEntity(
+                    product,
+                    price.finalPrice(),
+                    price.discountPercentage()
+            );
         });
     }
 
+    public List<String> getSearchHints(String keyword) {
+        return productRepository.searchKeywordSuggestions(keyword);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -92,10 +124,10 @@ public class ProductServiceImpl implements ProductService {
     // Thêm vào phần Admin Methods
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<AdminProductResponseDTO> getAdminProducts(Pageable pageable, String searchTerm, Long categoryId) {
         // 1. Specification giống như getProducts
-        Specification<Product> spec = ProductSpecification.filterBy(searchTerm, categoryId,true,false);
+        Specification<Product> spec = ProductSpecification.filterBy(searchTerm, categoryId,null, true, false);
 
         // 2. Lấy page Product
         Page<Product> productPage = productRepository.findAll(spec, pageable);
@@ -110,6 +142,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public AdminProductResponseDTO getAdminProductDetails(Long id) {
         Product product = productRepository.findById(id).orElseThrow(EntityNotFoundException::new);
         ProductStockInfoDTO stockQuantity = inventoryService.getProductStockInfo(id);
@@ -199,6 +232,7 @@ public class ProductServiceImpl implements ProductService {
         // Hiện tại: cho phép xóa
         productRepository.delete(product);
     }
+
     @Override
     @Transactional
     public void softDeleteProduct(Long productId) {
@@ -208,6 +242,7 @@ public class ProductServiceImpl implements ProductService {
         p.setDeletedAt(LocalDateTime.now());
         productRepository.save(p);
     }
+
     @Override
     @Transactional
     public void restoreSoftDeleteProduct(Long productId) {
