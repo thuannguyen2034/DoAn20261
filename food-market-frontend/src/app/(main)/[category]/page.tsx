@@ -1,0 +1,173 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { CategoryResponse, ProductResponse, PageResponse } from '@/types/product';
+import styles from './CategoryPage.module.css';
+
+export default function CategoryPage() {
+    const params = useParams();
+    const router = useRouter();
+    const categorySlug = params.category as string;
+
+    const [currentCategory, setCurrentCategory] = useState<CategoryResponse | null>(null);
+    const [siblingCategories, setSiblingCategories] = useState<CategoryResponse[]>([]);
+    const [products, setProducts] = useState<ProductResponse[]>([]);
+    const [sortBy, setSortBy] = useState('newest');
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [loading, setLoading] = useState(false);
+
+    // Fetch sibling categories (same root)
+    useEffect(() => {
+        const fetchSiblingCategories = async () => {
+            try {
+                const response = await fetch(
+                    `/api/v1/categories/same-root?categorySlug=${categorySlug}`
+                );
+                if (response.ok) {
+                    const data: CategoryResponse[] = await response.json();
+                    setSiblingCategories(data);
+                    // Find current category from siblings
+                    const current = data.find(cat => cat.slug === categorySlug);
+                    if (current) {
+                        setCurrentCategory(current);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch sibling categories:', error);
+            }
+        };
+
+        fetchSiblingCategories();
+    }, [categorySlug]);
+
+    // Fetch products
+    useEffect(() => {
+        const fetchProducts = async (pageNum: number, append: boolean = false) => {
+            setLoading(true);
+            try {
+                const params = new URLSearchParams();
+                params.append('categorySlug', categorySlug);
+                params.append('sort', sortBy);
+                params.append('page', pageNum.toString());
+                params.append('size', '20');
+
+                const response = await fetch(`/api/v1/products?${params.toString()}`);
+                if (response.ok) {
+                    const data: PageResponse<ProductResponse> = await response.json();
+                    if (append) {
+                        setProducts(prev => [...prev, ...data.content]);
+                    } else {
+                        setProducts(data.content);
+                    }
+                    setHasMore(!data.last);
+                }
+            } catch (error) {
+                console.error('Failed to fetch products:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchProducts(page, page > 0);
+    }, [categorySlug, sortBy, page]);
+
+    const handleSortChange = (newSort: string) => {
+        setSortBy(newSort);
+        setPage(0);
+    };
+
+    const handleLoadMore = () => {
+        setPage(prev => prev + 1);
+    };
+
+    const formatPrice = (price: number) => {
+        return new Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND',
+        }).format(price);
+    };
+
+    return (
+        <div className={styles.container}>
+            {/* Category Header */}
+            {currentCategory && (
+                <div className={styles.categoryHeader}>
+                    {currentCategory.imageUrl && (
+                        <img src={currentCategory.imageUrl} alt={currentCategory.name} className={styles.categoryImage} />
+                    )}
+                    <h1>{currentCategory.name}</h1>
+                </div>
+            )}
+
+            {/* Sibling Categories */}
+            {siblingCategories.length > 0 && (
+                <div className={styles.siblingCategories}>
+                    {siblingCategories.map(cat => (
+                        <Link
+                            key={cat.id}
+                            href={`/${cat.slug}`}
+                            className={`${styles.categoryChip} ${cat.slug === categorySlug ? styles.active : ''}`}
+                        >
+                            {cat.imageUrl && (
+                                <img src={cat.imageUrl} alt={cat.name} className={styles.categoryChipImage} />
+                            )}
+                            {cat.name}
+                        </Link>
+                    ))}
+                </div>
+            )}
+
+            {/* Sort Controls */}
+            <div className={styles.controls}>
+                <span>Sắp xếp:</span>
+                <select value={sortBy} onChange={(e) => handleSortChange(e.target.value)}>
+                    <option value="newest">Mới nhất</option>
+                    <option value="price_asc">Giá thấp đến cao</option>
+                    <option value="price_desc">Giá cao đến thấp</option>
+                    <option value="best_selling">Bán chạy</option>
+                </select>
+            </div>
+
+            {/* Products Grid */}
+            {loading && page === 0 ? (
+                <div className={styles.loading}>Đang tải...</div>
+            ) : products.length === 0 ? (
+                <div className={styles.empty}>Không có sản phẩm nào</div>
+            ) : (
+                <>
+                    <div className={styles.productsGrid}>
+                        {products.map(product => (
+                            <Link key={product.id} href={`/products/${product.slug}`} className={styles.productCard}>
+                                {product.images[0] && (
+                                    <img src={product.images[0].imageUrl} alt={product.name} className={styles.productImage} />
+                                )}
+                                <h3>{product.name}</h3>
+                                <p className={styles.categoryName}>{product.category.name}</p>
+                                <div className={styles.priceRow}>
+                                    <span className={styles.finalPrice}>{formatPrice(product.finalPrice)}</span>
+                                    {product.discountPercentage > 0 && (
+                                        <>
+                                            <span className={styles.basePrice}>{formatPrice(product.basePrice)}</span>
+                                            <span className={styles.discount}>-{product.discountPercentage}%</span>
+                                        </>
+                                    )}
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+
+                    {hasMore && (
+                        <div className={styles.loadMore}>
+                            <button onClick={handleLoadMore} disabled={loading}>
+                                {loading ? 'Đang tải...' : 'Xem thêm'}
+                            </button>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
