@@ -20,7 +20,7 @@ public interface InventoryBatchRepository extends JpaRepository<InventoryBatch, 
      * 1. Vẫn còn hàng (current_quantity > 0)
      * 2. Sắp xếp theo ngày hết hạn TĂNG DẦN (lô sắp hết hạn nhất lên đầu)
      */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
+
     @Query("""
                 SELECT ib FROM InventoryBatch ib
                 WHERE ib.productId = :productId

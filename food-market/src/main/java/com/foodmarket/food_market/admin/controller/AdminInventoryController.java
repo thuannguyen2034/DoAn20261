@@ -17,7 +17,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -35,7 +34,7 @@ public class AdminInventoryController {
     public ResponseEntity<InventoryBatchDTO> importStockBatch(
             @Valid @RequestBody ImportStockRequestDTO requestDTO) {
         // Lưu ý: userId thực hiện nhập hàng có thể lấy từ token nếu cần lưu vết người nhập ban đầu
-        InventoryBatchDTO response = InventoryBatchDTO.fromEntity(inventoryService.importStock(requestDTO));
+        InventoryBatchDTO response = inventoryService.importStock(requestDTO);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 

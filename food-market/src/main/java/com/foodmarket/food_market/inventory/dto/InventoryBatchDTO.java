@@ -10,6 +10,7 @@ import java.util.List;
 public record InventoryBatchDTO(
         Long batchId,
         Long productId,
+        String productName,
         String batchCode,
         int quantityReceived,
         int currentQuantity,
@@ -17,10 +18,11 @@ public record InventoryBatchDTO(
         LocalDate expirationDate,
         List<InventoryAdjustmentDTO> adjustments
         ) {
-    public static InventoryBatchDTO fromEntity(InventoryBatch batch,List<InventoryAdjustmentDTO> adjustments) {
+    public static InventoryBatchDTO fromEntity(InventoryBatch batch,List<InventoryAdjustmentDTO> adjustments, String productName) {
         return new InventoryBatchDTO(
                 batch.getBatchId(),
                 batch.getProductId(),
+                productName,
                 batch.getBatchCode(),
                 batch.getQuantityReceived(),
                 batch.getCurrentQuantity(),
@@ -29,7 +31,7 @@ public record InventoryBatchDTO(
                 adjustments
         );
     }
-    public static InventoryBatchDTO fromEntity(InventoryBatch batch) {
-        return fromEntity(batch, List.of());
+    public static InventoryBatchDTO fromEntity(InventoryBatch batch, String productName) {
+        return fromEntity(batch, List.of(),productName);
     }
 }

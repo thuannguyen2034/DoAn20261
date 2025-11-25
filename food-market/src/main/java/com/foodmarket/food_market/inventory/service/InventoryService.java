@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface InventoryService {
@@ -28,7 +29,7 @@ public interface InventoryService {
      * @param requestDTO Thông tin lô hàng mới.
      * @return Lô hàng vừa được tạo.
      */
-    InventoryBatch importStock(ImportStockRequestDTO requestDTO);
+    InventoryBatchDTO importStock(ImportStockRequestDTO requestDTO);
 
     /**
      * Nghiệp vụ 2 (Nâng cấp): Phân bổ kho cho Đơn hàng (Logic FEFO).
@@ -66,4 +67,7 @@ public interface InventoryService {
      * @return DTO chứa tổng tồn kho và HSD sớm nhất (nếu có).
      */
     ProductStockInfoDTO getProductStockInfo(Long productId);
+
+    long countExpiringBatches(LocalDate thresholdDate);
+    void restoreStock(Long batchId, int quantityToRestore);
 }

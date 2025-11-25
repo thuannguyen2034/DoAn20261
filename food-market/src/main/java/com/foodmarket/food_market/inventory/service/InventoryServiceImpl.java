@@ -6,6 +6,8 @@ import com.foodmarket.food_market.inventory.model.InventoryAdjustment;
 import com.foodmarket.food_market.inventory.model.InventoryBatch;
 import com.foodmarket.food_market.inventory.repository.InventoryAdjustmentRepository;
 import com.foodmarket.food_market.inventory.repository.InventoryBatchRepository;
+import com.foodmarket.food_market.product.repository.ProductRepository;
+import com.foodmarket.food_market.product.service.ProductServiceImpl;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -27,6 +29,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryBatchRepository inventoryBatchRepository;
     private final InventoryAdjustmentRepository inventoryAdjustmentRepository;
+    private final ProductRepository productRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -41,7 +44,10 @@ public class InventoryServiceImpl implements InventoryService {
             pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("expirationDate").ascending());
         }
         Page<InventoryBatch> batchesPage = inventoryBatchRepository.findAll(spec, pageable);
-        return batchesPage.map(InventoryBatchDTO::fromEntity);
+        return batchesPage.map(inventoryBatch ->{
+            String productName = productRepository.findNameById(inventoryBatch.getProductId());
+            return InventoryBatchDTO.fromEntity(inventoryBatch, productName);
+        });
     }
 
 
@@ -56,8 +62,9 @@ public class InventoryServiceImpl implements InventoryService {
         List<InventoryAdjustmentDTO> adjustmentDTOs = adjustments.stream()
                 .map(InventoryAdjustmentDTO::fromEntity)
                 .toList();
-
-        return InventoryBatchDTO.fromEntity(batch, adjustmentDTOs);
+        // Lấy tên sản phẩm
+        String productName = productRepository.findNameById(batch.getProductId());
+        return InventoryBatchDTO.fromEntity(batch, adjustmentDTOs, productName);
     }
 
     // Cao ưu tiên 2: getAllBatches (sửa thành int daysThreshold để dễ filter < now + days)
@@ -89,7 +96,10 @@ public class InventoryServiceImpl implements InventoryService {
         }
 
         Page<InventoryBatch> page = inventoryBatchRepository.findAll(spec, pageable);
-        return page.map(InventoryBatchDTO::fromEntity);
+        return page.map(inventoryBatch -> {
+            String productName = productRepository.findNameById(inventoryBatch.getProductId());
+            return InventoryBatchDTO.fromEntity(inventoryBatch, productName);
+        });
     }
 
     // Cao ưu tiên 3: destroyBatch
@@ -115,12 +125,13 @@ public class InventoryServiceImpl implements InventoryService {
         batch.setCurrentQuantity(0);
         inventoryBatchRepository.save(batch);
     }
+
     /**
      * {@inheritDoc}
      */
     @Override
     @Transactional
-    public InventoryBatch importStock(ImportStockRequestDTO requestDTO) {
+    public InventoryBatchDTO importStock(ImportStockRequestDTO requestDTO) {
         InventoryBatch newBatch = new InventoryBatch();
         newBatch.setProductId(requestDTO.getProductId());
         newBatch.setBatchCode(requestDTO.getBatchCode());
@@ -129,8 +140,9 @@ public class InventoryServiceImpl implements InventoryService {
 
         // Khi mới nhập, số lượng hiện tại = số lượng nhận
         newBatch.setCurrentQuantity(requestDTO.getQuantityReceived());
-
-        return inventoryBatchRepository.save(newBatch);
+        inventoryBatchRepository.save(newBatch);
+        String productName = productRepository.findNameById(newBatch.getProductId());
+        return InventoryBatchDTO.fromEntity(newBatch, productName);
     }
 
     @Override
@@ -143,9 +155,10 @@ public class InventoryServiceImpl implements InventoryService {
 
         return adjustmentsPage.map(InventoryAdjustmentDTO::fromEntity);
     }
+
     /**
      * {@inheritDoc}
-     *
+     * <p>
      * Đây là logic FEFO (First-Expired, First-Out) cốt lõi.
      */
     @Override
@@ -197,6 +210,7 @@ public class InventoryServiceImpl implements InventoryService {
         // 6. Trả về danh sách các lô đã dùng
         return allocations;
     }
+
     /**
      * {@inheritDoc}
      */
@@ -240,6 +254,7 @@ public class InventoryServiceImpl implements InventoryService {
         // Tính tổng
         return batches.stream().mapToInt(InventoryBatch::getCurrentQuantity).sum();
     }
+
     /**
      * {@inheritDoc}
      */
@@ -263,5 +278,31 @@ public class InventoryServiceImpl implements InventoryService {
         LocalDate soonestDate = batches.getFirst().getExpirationDate();
 
         return new ProductStockInfoDTO(totalStock, soonestDate);
+    }
+
+    @Override
+    public long countExpiringBatches(LocalDate thresholdDate) {
+        return inventoryBatchRepository.countExpiringBatches(thresholdDate);
+    }
+
+    // Trong InventoryServiceImpl.java
+
+    @Override
+    @Transactional
+    public void restoreStock(Long batchId, int quantityToRestore) {
+        InventoryBatch batch = inventoryBatchRepository.findById(batchId)
+                .orElseThrow(() -> new EntityNotFoundException("Batch not found"));
+
+        // Cộng lại kho
+        batch.setCurrentQuantity(batch.getCurrentQuantity() + quantityToRestore);
+        inventoryBatchRepository.save(batch);
+
+        // (Option) Lưu log Adjustment để biết tại sao tự nhiên kho tăng lên
+        InventoryAdjustment adjustment = new InventoryAdjustment();
+        adjustment.setInventoryBatch(batch);
+        adjustment.setReason("RESTORE_FROM_CANCEL_ORDER");
+        adjustment.setAdjustmentQuantity(quantityToRestore);
+        // adjustment.setAdjustedByUserId(...); // Có thể null hoặc để ID hệ thống
+        inventoryAdjustmentRepository.save(adjustment);
     }
 }
