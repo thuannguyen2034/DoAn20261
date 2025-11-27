@@ -94,7 +94,6 @@ export default function Navbar() {
     if (query.trim()) {
       router.push(`/search?q=${encodeURIComponent(query)}`);
       setShowSuggestions(false);
-      setSearchQuery('');
     }
   };
 

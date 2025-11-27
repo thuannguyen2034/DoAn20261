@@ -5,14 +5,13 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Entity
 @Table(name = "products")
@@ -32,11 +31,15 @@ public class Product {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private Map<String, String> specifications = new HashMap<>();
+
     @OneToMany(
-            mappedBy = "product", // Tên trường 'product' trong ProductImage
-            cascade = CascadeType.ALL, // Lưu, xóa, cập nhật... sẽ tự động lan sang ProductImage
-            orphanRemoval = true, // Xóa ProductImage nếu nó bị gỡ khỏi list này
-            fetch = FetchType.EAGER // Load ảnh ngay khi load product (hoặc LAZY nếu muốn)
+            mappedBy = "product",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.EAGER
     )
     @OrderBy("displayOrder ASC") // Luôn sắp xếp ảnh theo thứ tự
     private List<ProductImage> images = new ArrayList<>();

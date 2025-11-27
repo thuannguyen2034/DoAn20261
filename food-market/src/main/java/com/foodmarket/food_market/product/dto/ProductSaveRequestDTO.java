@@ -7,6 +7,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class ProductSaveRequestDTO {
@@ -15,7 +16,7 @@ public class ProductSaveRequestDTO {
     private String name;
 
     private String description;
-
+    private Map<String, String> specifications;
     @NotNull(message = "Giá gốc không được để trống")
     @Positive(message = "Giá gốc phải lớn hơn 0")
     private BigDecimal basePrice;

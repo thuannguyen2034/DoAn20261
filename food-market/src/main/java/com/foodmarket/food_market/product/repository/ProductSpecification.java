@@ -2,6 +2,7 @@ package com.foodmarket.food_market.product.repository;
 
 import com.foodmarket.food_market.product.model.Product;
 import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
 public class ProductSpecification {
@@ -47,16 +48,17 @@ public class ProductSpecification {
         if (keyword == null || keyword.trim().isEmpty()) return null;
 
         return (root, query, cb) -> {
-            // 1. Lấy giá trị cột name và bọc trong hàm unaccent
-            Expression<String> unaccentName = cb.function("unaccent", String.class, root.get("name"));
-
-            // 2. Tạo pattern tìm kiếm, cũng bọc keyword trong unaccent
-            // Lưu ý: concat '%' ở ngoài để tránh phức tạp trong hàm function
             String pattern = "%" + keyword.toLowerCase() + "%";
             Expression<String> unaccentPattern = cb.function("unaccent", String.class, cb.literal(pattern));
 
-            // 3. So sánh ILIKE (lower case)
-            return cb.like(cb.lower(unaccentName), cb.lower(unaccentPattern));
+            Expression<String> unaccentProductName = cb.function("unaccent", String.class, root.get("name"));
+            Predicate namePredicate = cb.like(cb.lower(unaccentProductName), cb.lower(unaccentPattern));
+
+            // Join bảng category để lấy tên
+            Expression<String> unaccentCategoryName = cb.function("unaccent", String.class, root.get("category").get("name"));
+            Predicate categoryPredicate = cb.like(cb.lower(unaccentCategoryName), cb.lower(unaccentPattern));
+
+            return cb.or(namePredicate, categoryPredicate);
         };
     }
     private static Specification<Product> hasCategoryId(Long categoryId) {

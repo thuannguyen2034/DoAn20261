@@ -26,7 +26,7 @@ public class ProductController {
     public ResponseEntity<Page<ProductResponseDTO>> getProducts(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String categorySlug,
-            @RequestParam(required = false, defaultValue = "newest") String sort,
+            @RequestParam(required = false) String sort,
             @PageableDefault(size = 20) Pageable pageable
     ) {
         // Truyền đúng thứ tự tham số

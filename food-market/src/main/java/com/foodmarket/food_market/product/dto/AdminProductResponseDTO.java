@@ -6,7 +6,9 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Data
@@ -15,6 +17,7 @@ public class AdminProductResponseDTO {
     private Long id;
     private String name;
     private String description;
+    private Map<String, String> specifications;
     private List<ProductImageDTO> images;
     private String unit;
     private BigDecimal basePrice; // Giá gốc
@@ -39,6 +42,7 @@ public class AdminProductResponseDTO {
                 .id(product.getId())
                 .name(product.getName())
                 .description(product.getDescription())
+                .specifications(product.getSpecifications()!=null?product.getSpecifications():new HashMap<>())
                 .images(product.getImages().stream()
                         .map(ProductImageDTO::fromEntity)
                         .collect(Collectors.toList()))

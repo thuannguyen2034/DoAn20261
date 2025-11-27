@@ -66,7 +66,7 @@ public class ProductServiceImpl implements ProductService {
             Pageable pageable // Pageable này chỉ chứa page và size từ client gửi lên
     ) {
         // 1. Xử lý Logic Sắp xếp (Sorting)
-        Sort sort = Sort.by(Sort.Direction.DESC, "createdAt"); // Mặc định: Mới nhất
+        Sort sort = Sort.unsorted();
 
         if (sortParam != null && !sortParam.isEmpty()) {
             switch (sortParam) {
@@ -75,7 +75,7 @@ public class ProductServiceImpl implements ProductService {
                 case "best_selling" -> sort = Sort.by(Sort.Direction.DESC, "soldCount");
                 case "name_asc" -> sort = Sort.by(Sort.Direction.ASC, "name");
                 case "newest" -> sort = Sort.by(Sort.Direction.DESC, "createdAt");
-                default -> { /* Giữ mặc định */ }
+                default -> {}
             }
         }
 
@@ -161,6 +161,7 @@ public class ProductServiceImpl implements ProductService {
         product.setName(request.getName());
         product.setSlug(generateUniqueSlug(name, null)); // null vì create mới
         product.setDescription(request.getDescription());
+        product.setSpecifications(request.getSpecifications() != null ? request.getSpecifications() : new HashMap<>());
         product.setBasePrice(request.getBasePrice());
         product.setUnit(request.getUnit());
         product.setCategory(category);
@@ -188,9 +189,12 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id).orElseThrow(EntityNotFoundException::new);
         Category category = findCategoryById(request.getCategoryId());
         String name = request.getName().trim();
-        product.setName(request.getName());
-        product.setSlug(generateUniqueSlug(name, id)); // Truyền id để exclude chính nó
+        if (!product.getName().equals(name)) {
+            product.setName(name);
+            product.setSlug(generateUniqueSlug(name, id));
+        }
         product.setDescription(request.getDescription());
+        product.setSpecifications(request.getSpecifications() != null ? request.getSpecifications() : new HashMap<>());
         product.setBasePrice(request.getBasePrice());
         product.setUnit(request.getUnit());
         product.setCategory(category);

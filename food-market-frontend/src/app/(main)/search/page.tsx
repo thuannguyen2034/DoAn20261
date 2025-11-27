@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CategoryResponse, ProductResponse, PageResponse } from '@/types/product';
@@ -11,107 +11,112 @@ export default function SearchPage() {
     const router = useRouter();
 
     const searchQuery = searchParams.get('q') || '';
-    const categoryParam = searchParams.get('category');
-    const sortParam = searchParams.get('sort') || 'newest';
+    const selectedCategory = searchParams.get('category') || null;
+    const sortBy = searchParams.get('sort') || '';
 
     const [categories, setCategories] = useState<CategoryResponse[]>([]);
     const [products, setProducts] = useState<ProductResponse[]>([]);
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(
-        categoryParam ? categoryParam : null
-    );
-    const [sortBy, setSortBy] = useState(sortParam);
-    const [page, setPage] = useState(0);
+    const [page, setPage] = useState<number>(0);
     const [hasMore, setHasMore] = useState(true);
     const [loading, setLoading] = useState(false);
 
-    // Fetch matching categories
     useEffect(() => {
-        if (!searchQuery) return;
+        if (!searchQuery) {
+            setCategories([]);
+            return;
+        }
 
+        let cancelled = false;
         const fetchCategories = async () => {
             try {
-                const response = await fetch(
-                    `/api/v1/categories/search?keyword=${encodeURIComponent(searchQuery)}`
-                );
-                if (response.ok) {
-                    const data: CategoryResponse[] = await response.json();
+                const resp = await fetch(`/api/v1/categories/search?keyword=${encodeURIComponent(searchQuery)}`);
+                if (!cancelled && resp.ok) {
+                    const data: CategoryResponse[] = await resp.json();
                     setCategories(data);
                 }
-            } catch (error) {
-                console.error('Failed to fetch categories:', error);
+            } catch (err) {
+                console.error('Failed to fetch categories:', err);
             }
         };
 
         fetchCategories();
+        return () => {
+            cancelled = true;
+        };
     }, [searchQuery]);
 
-    // Fetch products
     useEffect(() => {
-        const fetchProducts = async (pageNum: number, append: boolean = false) => {
+        setPage(0);
+        setProducts([]);
+        setHasMore(true);
+    }, [searchQuery, selectedCategory, sortBy]);
+
+    const fetchProducts = useCallback(
+        async (pageNum: number, append = false) => {
             setLoading(true);
             try {
                 const params = new URLSearchParams();
                 if (searchQuery) params.append('search', searchQuery);
                 if (selectedCategory) params.append('categorySlug', selectedCategory);
-                params.append('sort', sortBy);
-                params.append('page', pageNum.toString());
+                if (sortBy) params.append('sort', sortBy);
+                params.append('page', String(pageNum));
                 params.append('size', '20');
 
-                const response = await fetch(`/api/v1/products?${params.toString()}`);
-                if (response.ok) {
-                    const data: PageResponse<ProductResponse> = await response.json();
-                    if (append) {
-                        setProducts(prev => [...prev, ...data.content]);
-                    } else {
-                        setProducts(data.content);
-                    }
-                    setHasMore(!data.last);
+                const resp = await fetch(`/api/v1/products?${params.toString()}`);
+                if (!resp.ok) {
+                    console.error('Failed to fetch products:', resp.statusText);
+                    return;
                 }
-            } catch (error) {
-                console.error('Failed to fetch products:', error);
+
+                const data: PageResponse<ProductResponse> = await resp.json();
+                if (append) {
+                    setProducts(prev => [...prev, ...data.content]);
+                } else {
+                    setProducts(data.content);
+                }
+                setHasMore(!data.last);
+            } catch (err) {
+                console.error('Failed to fetch products:', err);
             } finally {
                 setLoading(false);
             }
-        };
+        },
+        [searchQuery, selectedCategory, sortBy]
+    );
 
-        fetchProducts(page, page > 0);
-    }, [searchQuery, selectedCategory, sortBy, page]);
-
-    // Update URL when filters change
     useEffect(() => {
+        fetchProducts(page, page > 0);
+    }, [fetchProducts, page]);
+    const updateUrl = (newQ?: string | null, newCategory?: string | null, newSort?: string | null) => {
         const params = new URLSearchParams();
-        if (searchQuery) params.append('q', searchQuery);
-        if (selectedCategory) params.append('category', selectedCategory);
-        if (sortBy !== 'newest') params.append('sort', sortBy);
+        const q = newQ !== undefined ? newQ : searchQuery;
+        const category = newCategory !== undefined ? newCategory : selectedCategory;
+        const sort = newSort !== undefined ? newSort : sortBy;
 
-        const newUrl = `/search?${params.toString()}`;
-        const currentUrl = window.location.pathname + window.location.search;
+        if (q) params.set('q', q);
+        if (category) params.set('category', category);
+        if (sort) params.set('sort', sort);
 
-        if (newUrl !== currentUrl) {
-            router.replace(newUrl, { scroll: false });
-        }
-    }, [selectedCategory, sortBy, router]);
+        const qs = params.toString();
+        const newUrl = qs ? `/search?${qs}` : '/search';
+        // use replace to avoid pushing many history entries when user toggles filters
+        router.replace(newUrl, { scroll: false });
+    };
 
     const handleCategoryFilter = (categorySlug: string | null) => {
-        setSelectedCategory(categorySlug);
-        setPage(0);
+        // update URL; this will trigger effects to reset page & fetch
+        updateUrl(undefined, categorySlug, undefined);
+        // page reset will be handled by reset effect
     };
 
     const handleSortChange = (newSort: string) => {
-        setSortBy(newSort);
-        setPage(0);
+        updateUrl(undefined, undefined, newSort);
     };
 
-    const handleLoadMore = () => {
-        setPage(prev => prev + 1);
-    };
+    const handleLoadMore = () => setPage(prev => prev + 1);
 
-    const formatPrice = (price: number) => {
-        return new Intl.NumberFormat('vi-VN', {
-            style: 'currency',
-            currency: 'VND',
-        }).format(price);
-    };
+    const formatPrice = (price: number) =>
+        new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
 
     return (
         <div className={styles.container}>
@@ -128,21 +133,12 @@ export default function SearchPage() {
                                 onClick={() => handleCategoryFilter(cat.slug)}
                                 className={`${styles.categoryButton} ${selectedCategory === cat.slug ? styles.active : ''}`}
                             >
-                                {cat.imageUrl && (
-                                    <img
-                                        src={cat.imageUrl}
-                                        alt={cat.name}
-                                        className={styles.categoryImage}
-                                    />
-                                )}
+                                {cat.imageUrl && <img src={cat.imageUrl} alt={cat.name} className={styles.categoryImage} />}
                                 {cat.name}
                             </button>
                         ))}
                         {selectedCategory && (
-                            <button
-                                onClick={() => handleCategoryFilter(null)}
-                                className={styles.clearFilterButton}
-                            >
+                            <button onClick={() => handleCategoryFilter(null)} className={styles.clearFilterButton}>
                                 Xóa bộ lọc
                             </button>
                         )}
@@ -153,10 +149,8 @@ export default function SearchPage() {
             {/* Sort Controls */}
             <div className={styles.controls}>
                 <span>Sắp xếp:</span>
-                <select
-                    value={sortBy}
-                    onChange={(e) => handleSortChange(e.target.value)}
-                >
+                <select value={sortBy} onChange={(e) => handleSortChange(e.target.value)}>
+                    <option value="" hidden>Sắp xếp theo</option>
                     <option value="newest">Mới nhất</option>
                     <option value="price_asc">Giá thấp đến cao</option>
                     <option value="price_desc">Giá cao đến thấp</option>
@@ -173,32 +167,16 @@ export default function SearchPage() {
                 <>
                     <div className={styles.productsGrid}>
                         {products.map(product => (
-                            <Link
-                                key={product.id}
-                                href={`/products/${product.slug}`}
-                                className={styles.productCard}
-                            >
-                                {product.images[0] && (
-                                    <img
-                                        src={product.images[0].imageUrl}
-                                        alt={product.name}
-                                        className={styles.productImage}
-                                    />
-                                )}
+                            <Link key={product.id} href={`/products/${product.slug}`} className={styles.productCard}>
+                                {product.images[0] && <img src={product.images[0].imageUrl} alt={product.name} className={styles.productImage} />}
                                 <h3>{product.name}</h3>
                                 <p>{product.category.name}</p>
                                 <div className={styles.priceRow}>
-                                    <span className={styles.finalPrice}>
-                                        {formatPrice(product.finalPrice)}
-                                    </span>
+                                    <span className={styles.finalPrice}>{formatPrice(product.finalPrice)}</span>
                                     {product.discountPercentage > 0 && (
                                         <>
-                                            <span className={styles.basePrice}>
-                                                {formatPrice(product.basePrice)}
-                                            </span>
-                                            <span className={styles.discount}>
-                                                -{product.discountPercentage}%
-                                            </span>
+                                            <span className={styles.basePrice}>{formatPrice(product.basePrice)}</span>
+                                            <span className={styles.discount}>-{product.discountPercentage}%</span>
                                         </>
                                     )}
                                 </div>
@@ -206,14 +184,9 @@ export default function SearchPage() {
                         ))}
                     </div>
 
-                    {/* Load More Button */}
                     {hasMore && (
                         <div className={styles.loadMore}>
-                            <button
-                                onClick={handleLoadMore}
-                                disabled={loading}
-                                className={styles.loadMoreButton}
-                            >
+                            <button onClick={handleLoadMore} disabled={loading} className={styles.loadMoreButton}>
                                 {loading ? 'Đang tải...' : 'Xem thêm'}
                             </button>
                         </div>

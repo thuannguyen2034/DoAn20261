@@ -71,7 +71,7 @@ public class CategoryServiceImpl implements CategoryService {
                 .collect(Collectors.toList());
     }
 
-
+    @Override
     public List<CategoryResponseDTO> getSearchCategories(String keyword) {
         return categoryRepository.searchByKeyword(keyword).stream()
                 .map(CategoryResponseDTO::fromEntity)
