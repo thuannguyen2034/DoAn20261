@@ -12,20 +12,25 @@ import java.math.BigDecimal;
 public class CartItemResponseDTO {
     private Long cartItemId;
     private int quantity;
-    private BigDecimal unitPrice; // Giá của 1 sản phẩm (đã tính)
+    private BigDecimal basePrice;
+    private BigDecimal itemPrice;
+    private BigDecimal totalBasePrice;
     private BigDecimal totalItemPrice; // quantity * unitPrice
     private CartItemProductInfoDTO product; // DTO con cho thông tin SP
-
-    public static CartItemResponseDTO fromEntity(CartItem cartItem, BigDecimal unitPrice) {
+    private String note;
+    public static CartItemResponseDTO fromEntity(CartItem cartItem, String note) {
         Product product = cartItem.getProduct();
-        BigDecimal total = unitPrice.multiply(BigDecimal.valueOf(cartItem.getQuantity()));
-
+        BigDecimal total = cartItem.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity()));
+        BigDecimal totalBase = product.getBasePrice().multiply(BigDecimal.valueOf(cartItem.getQuantity()));
         return CartItemResponseDTO.builder()
                 .cartItemId(cartItem.getId())
                 .quantity(cartItem.getQuantity())
-                .unitPrice(unitPrice)
+                .basePrice(product.getBasePrice())
+                .itemPrice(cartItem.getPrice())
+                .totalBasePrice(totalBase)
                 .totalItemPrice(total)
                 .product(CartItemProductInfoDTO.fromEntity(product))
+                .note(note)
                 .build();
     }
 }

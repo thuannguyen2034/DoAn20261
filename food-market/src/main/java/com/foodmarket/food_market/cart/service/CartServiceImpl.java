@@ -7,11 +7,9 @@ import com.foodmarket.food_market.cart.model.Cart;
 import com.foodmarket.food_market.cart.model.CartItem;
 import com.foodmarket.food_market.cart.repository.CartItemRepository;
 import com.foodmarket.food_market.cart.repository.CartRepository;
-import com.foodmarket.food_market.inventory.repository.InventoryBatchRepository; // Cần để check tồn kho
-import com.foodmarket.food_market.product.dto.ProductResponseDTO; // TÁI SỬ DỤNG
+import com.foodmarket.food_market.inventory.repository.InventoryBatchRepository;
 import com.foodmarket.food_market.product.model.Product;
 import com.foodmarket.food_market.product.repository.ProductRepository;
-import com.foodmarket.food_market.product.service.ProductService; // TÁI SỬ DỤNG
 import com.foodmarket.food_market.user.model.entity.User;
 import com.foodmarket.food_market.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -19,10 +17,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,90 +29,133 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
-    private final InventoryBatchRepository inventoryBatchRepository; // Check tồn kho
-    private final ProductService productService; // TÁI SỬ DỤNG ĐỂ TÍNH GIÁ
+    private final InventoryBatchRepository inventoryBatchRepository;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public CartResponseDTO getCart(UUID userId) {
-        Cart cart = findOrCreateCart(userId, true); // Dùng true để fetch items
-        return mapCartToDTO(cart);
+        Cart cart = findOrCreateCart(userId, true);
+        Map<Long, String> note = new HashMap<>(); // List chứa thông báo thay đổi
+        boolean isCartChanged = false; // Cờ đánh dấu để gọi save() nếu cần
+
+        for (CartItem item : cart.getItems()) {
+            Product product = item.getProduct();
+            BigDecimal currentLivePrice = product.getFinalPrice();
+            if (item.getPrice().compareTo(currentLivePrice) != 0) {
+                if (item.getPrice().compareTo(currentLivePrice) < 0) {
+                    note.put(item.getId(), "Chương trình khuyến mãi cho món '" + product.getName() +
+                            "' đã kết thúc. Giá đã cập nhật về " + currentLivePrice + "đ.");
+                } else {
+                    note.put(item.getId(), "Tin vui! Món '" + product.getName() +
+                            "' vừa được giảm giá xuống còn " + currentLivePrice + "đ.");
+                }
+                item.setPrice(currentLivePrice);
+                isCartChanged = true;
+            }
+            // 3. logic check tồn kho
+            long stockQuantity = inventoryBatchRepository.findCurrentProductQuantity(item.getProduct().getId());
+            if (stockQuantity <= 0) {
+                item.setQuantity(0);
+                note.put(item.getId(), "Sản phẩm đã hết hàng");
+                isCartChanged = true;
+            } else if (stockQuantity < item.getQuantity()) {
+                item.setQuantity((int) stockQuantity);
+                note.put(item.getId(), "Kho chỉ còn " + stockQuantity + " sản phẩm. Số lượng đã được cập nhật.");
+                isCartChanged = true;
+            }
+        }
+        if (isCartChanged) {
+            cartRepository.save(cart);
+        }
+        return mapCartToDTO(cart, note);
     }
 
+    // ==================================================================
+    // 2. ADD ITEM TO CART (Đã sửa logic check kho & giá)
+    // ==================================================================
     @Override
     @Transactional
     public CartResponseDTO addItemToCart(UUID userId, CartItemRequestDTO request) {
-        Cart cart = findOrCreateCart(userId, false); // Không cần fetch, sẽ thêm item
+        Cart cart = findOrCreateCart(userId, false);
         Product product = findProductById(request.getProductId());
 
-        // --- Logic nghiệp vụ quan trọng ---
-        // 1. Kiểm tra tồn kho (dựa trên logic HSD của bạn)
-        // Chúng ta chỉ cần check xem có lô nào còn hàng không (quantity > 0)
-        boolean inStock = inventoryBatchRepository
-                .findStillHasProductByProductIdOrderByExpirationDateAsc(request.getProductId())
-                .isEmpty();
+        // 1. Kiểm tra tồn kho thực tế
+        long currentStock = inventoryBatchRepository
+                .findCurrentProductQuantity(request.getProductId());
 
-        if (inStock) {
-            // Ném lỗi 400 Bad Request
-            throw new IllegalArgumentException("Sản phẩm '" + product.getName() + "' đã hết hàng.");
+        // Tìm item cũ để tính tổng số lượng sau khi thêm
+        Optional<CartItem> existingItemOpt = cartItemRepository.findByCartAndProduct(cart, product);
+        int currentQuantityInCart = existingItemOpt.map(CartItem::getQuantity).orElse(0);
+        int totalRequested = currentQuantityInCart + request.getQuantity();
+
+        if (currentStock < totalRequested) {
+            throw new IllegalArgumentException(
+                    "Kho chỉ còn " + currentStock + " sản phẩm (Giỏ của bạn đã có " + currentQuantityInCart + ")."
+            );
         }
 
-        // 2. Tìm xem item đã có trong giỏ chưa
-        Optional<CartItem> existingItemOpt = cartItemRepository.findByCartAndProduct(cart, product);
+        // 2. Xử lý Thêm hoặc Cập nhật
+        // LƯU Ý: Luôn lấy giá thực tế hiện tại (getFinalPrice) để lưu
+        BigDecimal priceToAdd = product.getFinalPrice();
 
         if (existingItemOpt.isPresent()) {
-            // Đã có: Cập nhật số lượng
             CartItem item = existingItemOpt.get();
-            item.setQuantity(item.getQuantity() + request.getQuantity());
+            item.setQuantity(totalRequested);
             cartItemRepository.save(item);
         } else {
-            // Chưa có: Tạo mới
             CartItem newItem = new CartItem(cart, product, request.getQuantity());
+            newItem.setPrice(priceToAdd); // Lưu giá hiện tại
             cartItemRepository.save(newItem);
         }
 
-        // Tải lại giỏ hàng (đã fetch) để trả về
-        Cart updatedCart = cartRepository.findByUserIdWithItems(userId)
-                .orElseThrow(() -> new EntityNotFoundException("Lỗi tải lại giỏ hàng."));
-        return mapCartToDTO(updatedCart);
+        // 3. QUAN TRỌNG: Gọi lại getCart để trả về DTO đầy đủ kèm Warnings (nếu có các item khác bị thay đổi)
+        return getCart(userId);
     }
 
+    // ==================================================================
+    // 3. UPDATE ITEM (Đã sửa logic check kho & giá)
+    // ==================================================================
     @Override
     @Transactional
     public CartResponseDTO updateCartItem(UUID userId, Long cartItemId, CartItemUpdateDTO request) {
-        Cart cart = findOrCreateCart(userId, false); // Chỉ cần ID giỏ hàng
+        Cart cart = findOrCreateCart(userId, false);
 
-        // --- Logic bảo mật quan trọng ---
-        // Phải tìm item BẰNG ID và ID giỏ hàng của user
         CartItem item = cartItemRepository.findByIdAndCart_Id(cartItemId, cart.getId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Không tìm thấy item trong giỏ hàng của bạn." // Lỗi 404
-                ));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy item trong giỏ hàng."));
 
+        // 1. Kiểm tra tồn kho với số lượng MỚI user muốn update
+        long currentStock = inventoryBatchRepository
+                .findCurrentProductQuantity(item.getProduct().getId());
+
+        if (currentStock < request.getQuantity()) {
+            throw new IllegalArgumentException(
+                    "Kho chỉ còn " + currentStock + " sản phẩm. Không thể cập nhật lên " + request.getQuantity() + "."
+            );
+        }
+
+        // 2. Cập nhật số lượng VÀ giá mới nhất
         item.setQuantity(request.getQuantity());
         cartItemRepository.save(item);
 
-        Cart updatedCart = cartRepository.findByUserIdWithItems(userId)
-                .orElseThrow(() -> new EntityNotFoundException("Lỗi tải lại giỏ hàng."));
-        return mapCartToDTO(updatedCart);
+        // 3. Gọi lại getCart để đảm bảo tính toán lại tổng tiền và warnings
+        return getCart(userId);
     }
 
+    // ==================================================================
+    // 4. REMOVE ITEM
+    // ==================================================================
     @Override
     @Transactional
     public CartResponseDTO removeCartItem(UUID userId, Long cartItemId) {
         Cart cart = findOrCreateCart(userId, false);
 
-        // --- Logic bảo mật (giống như update) ---
         CartItem item = cartItemRepository.findByIdAndCart_Id(cartItemId, cart.getId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Không tìm thấy item trong giỏ hàng của bạn."
-                ));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy item trong giỏ hàng."));
 
         cartItemRepository.delete(item);
 
-        Cart updatedCart = cartRepository.findByUserIdWithItems(userId)
-                .orElseThrow(() -> new EntityNotFoundException("Lỗi tải lại giỏ hàng."));
-        return mapCartToDTO(updatedCart);
+        // Gọi lại getCart để tính lại tổng tiền sau khi xóa
+        return getCart(userId);
     }
 
     // ==================================================================
@@ -124,6 +164,7 @@ public class CartServiceImpl implements CartService {
 
     /**
      * Hàm tiện ích tìm giỏ hàng. Tự tạo nếu chưa có.
+     *
      * @param fetchItems Dùng query JOIN FETCH (tốn kém) hay không?
      */
     private Cart findOrCreateCart(UUID userId, boolean fetchItems) {
@@ -145,27 +186,11 @@ public class CartServiceImpl implements CartService {
         return cartRepository.save(newCart);
     }
 
-    /**
-     * Hàm tiện ích chuyển đổi Cart sang DTO (chứa logic tính giá)
-     */
-    private CartResponseDTO mapCartToDTO(Cart cart) {
+    private CartResponseDTO mapCartToDTO(Cart cart, Map<Long, String> noteMap) {
         if (cart.getItems().isEmpty()) {
-            // Trả về giỏ hàng trống, không cần gọi ProductService
             return CartResponseDTO.fromEntity(cart, Map.of());
         }
-
-        // Lấy danh sách ID các sản phẩm trong giỏ
-        Set<Long> productIds = cart.getItems().stream()
-                .map(item -> item.getProduct().getId())
-                .collect(Collectors.toSet());
-
-        // --- Tái sử dụng logic tính giá ---
-        // Gọi ProductService để lấy giá động (finalPrice) cho TẤT CẢ sản phẩm
-        Map<Long, ProductResponseDTO> priceMap = productIds.stream()
-                .map(productService::getProductDetails) // Gọi hàm đã có
-                .collect(Collectors.toMap(ProductResponseDTO::getId, Function.identity()));
-
-        return CartResponseDTO.fromEntity(cart, priceMap);
+        return CartResponseDTO.fromEntity(cart, noteMap);
     }
 
     private Product findProductById(Long id) {

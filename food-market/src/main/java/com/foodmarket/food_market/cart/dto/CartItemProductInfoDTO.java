@@ -4,7 +4,6 @@ import com.foodmarket.food_market.product.model.Product;
 import lombok.Builder;
 import lombok.Data;
 
-// DTO con, chỉ chứa thông tin tóm tắt của Product trong giỏ hàng
 @Data
 @Builder
 public class CartItemProductInfoDTO {
@@ -12,13 +11,20 @@ public class CartItemProductInfoDTO {
     private String name;
     private String imageUrl;
     private String unit;
+    private String slug;
+    private String categorySlug;
 
     public static CartItemProductInfoDTO fromEntity(Product product) {
+        String imageUrl = (product.getImages() != null && !product.getImages().isEmpty())
+                ? product.getImages().get(0).getImageUrl()
+                : null;
         return CartItemProductInfoDTO.builder()
                 .id(product.getId())
                 .name(product.getName())
-                .imageUrl(product.getImages().getFirst().getImageUrl())
+                .imageUrl(imageUrl)
                 .unit(product.getUnit())
+                .slug(product.getSlug())
+                .categorySlug(product.getCategory().getSlug())
                 .build();
     }
 }
