@@ -1,4 +1,3 @@
-// src/context/AuthContext.tsx
 'use client';
 
 import {
@@ -10,10 +9,9 @@ import {
   ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserResponseDTO } from '@/app/type/User'; // <-- IMPORT USER DTO
+import { UserResponseDTO } from '@/app/type/User';
 // 1. ĐỊNH NGHĨA TYPES
 
-// DTO mới mà backend trả về (chỉ accessToken)
 interface AccessTokenResponseDTO {
   token: string;
 }
@@ -172,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
     } catch (error) {
       console.error('Failed to fetch user', error);
-      await logout(); // Nếu token đúng nhưng /me lỗi -> logout
+      await logout();
     } finally {
       setIsLoading(false);
     }
@@ -185,8 +183,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const tokenInStorage = localStorage.getItem('accessToken');
 
       if (tokenInStorage) {
-        // Nếu có token, chúng ta không biết nó còn hạn hay không.
-        // Cứ thử gọi API /me bằng authedFetch.
         // authedFetch sẽ tự động refresh nếu token hết hạn.
         try {
           // Dùng authedFetch, nó sẽ tự xử lý 401
@@ -197,10 +193,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           const userData = await response.json();
           setUser(userData);
-          // (Không cần setAccessToken, vì authedFetch đã làm)
         } catch (error) {
           console.error('Auto-login failed:', error);
-          // authedFetch hoặc handleRefreshToken đã gọi logout()
         }
       }
       
@@ -208,7 +202,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     checkUserLoggedIn();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Chỉ chạy 1 lần
 
   // 7. CUNG CẤP VALUE CHO CONTEXT

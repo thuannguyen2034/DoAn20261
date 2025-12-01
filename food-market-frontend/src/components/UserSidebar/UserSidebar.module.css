@@ -1,86 +1,136 @@
-/* Tên file: /components/UserSidebar/UserSidebar.module.css */
 .sidebarNav {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 /* User Profile Header */
 .userProfile {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
   margin-bottom: 1rem;
+  padding-bottom: 1rem;
 }
 
 .avatar {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background-color: #f0f0f0;
+  background: #f3f4f6;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 1.5rem;
-  color: #555;
-  border: 1px solid #ddd;
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: #6b7280;
+  border: 2px solid #e5e7eb;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .userInfo {
   display: flex;
   flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .username {
   font-weight: 600;
-  color: #333;
+  color: #1f2937;
+  font-size: 0.9375rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .editProfile {
-  font-size: 0.8rem;
-  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
   text-decoration: none;
+  transition: color 0.2s;
 }
+
 .editProfile:hover {
-  color: var(--primary-color); /* Giả sử bạn có biến màu chính */
+  color: #F29AAE;
 }
 
 .divider {
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid #e5e7eb;
   margin-bottom: 1rem;
 }
 
-/* Navigation Links */
+/* Navigation Groups */
 .navGroup {
   margin-bottom: 1.5rem;
 }
 
+.navGroup:last-child {
+  margin-bottom: 0;
+}
+
 .groupTitle {
   font-weight: 600;
-  color: #333;
+  color: #374151;
   margin-bottom: 0.75rem;
   display: block;
-  font-size: 1rem;
+  font-size: 0.875rem;
 }
 
 .navList {
   list-style: none;
-  padding-left: 12px; /* Thụt vào 1 chút giống Shopee */
+  padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .navLink {
-  display: block;
-  padding: 8px 0;
-  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  color: #6b7280;
   text-decoration: none;
-  transition: color 0.2s ease;
+  border-radius: 4px;
+  transition: all 0.2s;
 }
 
 .navLink:hover {
-  color: var(--primary-color);
+  background: #f9fafb;
+  color: #1f2937;
 }
 
 .navLink.active {
-  color: var(--primary-color);
-  font-weight: 600;
+  background: #fce7f3;
+  color: #F29AAE;
+  font-weight: 500;
+}
+
+.navLink.active svg {
+  color: #F29AAE;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .userProfile {
+    padding-bottom: 0.75rem;
+  }
+
+  .navGroup {
+    margin-bottom: 1rem;
+  }
+
+  .navLink {
+    padding: 0.75rem;
+  }
 }

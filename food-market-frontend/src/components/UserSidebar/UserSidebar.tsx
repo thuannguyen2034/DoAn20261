@@ -1,72 +1,75 @@
-// Tên file: /components/UserSidebar/UserSidebar.tsx
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { User, MapPin, Lock, ShoppingBag, Bell, Edit } from 'lucide-react';
 import styles from './UserSidebar.module.css';
-import { useAuth } from '@/context/AuthContext'; // Import AuthContext của bạn
+import { useAuth } from '@/context/AuthContext';
 
-// Định nghĩa các mục điều hướng
 const navItems = [
   {
     groupTitle: 'Tài Khoản Của Tôi',
     links: [
-      { href: '/user/profile', label: 'Hồ Sơ' },
-      { href: '/user/address', label: 'Địa Chỉ' },
-      { href: '/user/change-password', label: 'Đổi Mật Khẩu' },
+      { href: '/user/profile', label: 'Hồ Sơ', icon: User },
+      { href: '/user/address', label: 'Địa Chỉ', icon: MapPin },
+      { href: '/user/change-password', label: 'Đổi Mật Khẩu', icon: Lock },
     ],
   },
   {
     groupTitle: 'Hoạt Động',
     links: [
-      { href: '/user/purchase', label: 'Đơn Mua' },
-      { href: '/user/notifications', label: 'Thông Báo' },
+      { href: '/user/purchase', label: 'Đơn Mua', icon: ShoppingBag },
+      { href: '/user/notifications', label: 'Thông Báo', icon: Bell },
     ],
   },
 ];
 
 export default function UserSidebar() {
   const pathname = usePathname();
-  const { user } = useAuth(); // Lấy thông tin user từ Context
+  const { user } = useAuth();
+
+  const avatarFallback = user?.fullName ? user.fullName[0].toUpperCase() : 'U';
+
   return (
     <nav className={styles.sidebarNav}>
-      {/* Phần thông tin User trên cùng */}
       <div className={styles.userProfile}>
-        {/* Hiển thị avatar */}
-        {
-            user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="Avatar" className={styles.avatar} />
-            ) : (
-            <div>
-                {user?.fullName ? user.fullName[0].toUpperCase() : 'U'}
-            </div>)
-        }
+        <div className={styles.avatar}>
+          {user?.avatarUrl ? (
+            <img src={user.avatarUrl} alt="Avatar" />
+          ) : (
+            <span>{avatarFallback}</span>
+          )}
         </div>
         <div className={styles.userInfo}>
           <span className={styles.username}>{user?.fullName || 'Tài khoản'}</span>
           <Link href="/user/profile" className={styles.editProfile}>
+            <Edit size={14} />
             Sửa Hồ Sơ
           </Link>
         </div>
+      </div>
+
       <div className={styles.divider}></div>
 
-      {/* Phần danh sách link điều hướng */}
       {navItems.map((group) => (
         <div key={group.groupTitle} className={styles.navGroup}>
           <span className={styles.groupTitle}>{group.groupTitle}</span>
           <ul className={styles.navList}>
-            {group.links.map((link) => (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  className={`${styles.navLink} ${
-                    pathname === link.href ? styles.active : ''
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              </li>
-            ))}
+            {group.links.map((link) => {
+              const Icon = link.icon;
+              return (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className={`${styles.navLink} ${pathname === link.href ? styles.active : ''
+                      }`}
+                  >
+                    <Icon size={18} />
+                    <span>{link.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}

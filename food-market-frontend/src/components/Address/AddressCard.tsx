@@ -1,5 +1,6 @@
-// components/Address/AddressCard.tsx
+import { Home, Building2, MapPin, Phone, User, Trash2, Edit, Check } from 'lucide-react';
 import { UserAddress } from '@/app/(protected)/user/address/page';
+import styles from './AddressCard.module.css';
 
 interface AddressCardProps {
   address: UserAddress;
@@ -17,20 +18,62 @@ export default function AddressCard({
   const fullAddress = `${address.streetAddress}, ${address.ward}, ${address.district}, ${address.province}`;
 
   return (
-    <div style={{ border: '1px solid #ddd', padding: '1rem', marginBottom: '1rem', borderRadius: '8px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <strong>{address.recipientName}</strong> | {address.recipientPhone}
-          {address.default && <span style={{ marginLeft: '8px', color: '#d32f2f' }}>(Mặc định)</span>}
-          <p style={{ margin: '4px 0' }}>{fullAddress}</p>
-          {address.addressType && <span>{address.addressType === 'HOME' ? 'Nhà riêng' : 'Công ty'}</span>}
+    <div className={styles.card}>
+      <div className={styles.header}>
+        <div className={styles.userInfo}>
+          <div className={styles.name}>
+            <User size={16} />
+            <strong>{address.recipientName}</strong>
+          </div>
+          <div className={styles.phone}>
+            <Phone size={16} />
+            {address.recipientPhone}
+          </div>
         </div>
+        {address.default && (
+          <span className={styles.defaultBadge}>
+            <Check size={14} />
+            Mặc định
+          </span>
+        )}
+      </div>
 
-        <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
-          <button onClick={onEdit}>Sửa</button>
-          {!address.default && <button onClick={onSetDefault}>Đặt làm mặc định</button>}
-          <button onClick={onDelete} style={{ color: 'red' }}>Xóa</button>
+      <div className={styles.address}>
+        <MapPin size={16} />
+        <span>{fullAddress}</span>
+      </div>
+
+      {address.addressType && (
+        <div className={styles.type}>
+          {address.addressType === 'HOME' ? (
+            <>
+              <Home size={16} />
+              Nhà riêng
+            </>
+          ) : (
+            <>
+              <Building2 size={16} />
+              Văn phòng
+            </>
+          )}
         </div>
+      )}
+
+      <div className={styles.actions}>
+        <button onClick={onEdit} className={styles.editBtn}>
+          <Edit size={16} />
+          Sửa
+        </button>
+        {!address.default && (
+          <button onClick={onSetDefault} className={styles.setDefaultBtn}>
+            <Check size={16} />
+            Đặt làm mặc định
+          </button>
+        )}
+        <button onClick={onDelete} className={styles.deleteBtn}>
+          <Trash2 size={16} />
+          Xóa
+        </button>
       </div>
     </div>
   );
